@@ -1,0 +1,71 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Test task and reminder logic
+        run: npm test
+      - name: Build and package both Mac architectures
+        run: npm run package:mac
+      - name: Generate checksums
+        run: |
+          cd release
+          shasum -a 256 Momo-macOS-arm64.zip Momo-macOS-x64.zip > SHA256SUMS
+      - name: Upload Apple Silicon application
+        id: apple
+        uses: actions/upload-artifact@v7
+        with:
+          path: release/Momo-macOS-arm64.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload Intel application
+        id: intel
+        uses: actions/upload-artifact@v7
+        with:
+          path: release/Momo-macOS-x64.zip
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload checksums
+        uses: actions/upload-artifact@v7
+        with:
+          path: release/SHA256SUMS
+          archive: false
+          if-no-files-found: error
+          retention-days: 30
+      - name: Show download links
+        env:
+          APPLE_DOWNLOAD: ${{ steps.apple.outputs.artifact-url }}
+          INTEL_DOWNLOAD: ${{ steps.intel.outputs.artifact-url }}
+        run: |
+          {
+            echo '## Momo Mac 测试包'
+            echo
+            echo "- [Apple 芯片版]($APPLE_DOWNLOAD)"
+            echo "- [Intel 版]($INTEL_DOWNLOAD)"
+            echo
+            echo '登录 GitHub 后点击下载，解压后将 Momo.app 拖入应用程序。'
+            echo '个人测试包未签名，首次打开方式见仓库 README。'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -6,9 +6,9 @@
 
 ## 在 Mac 上直接使用
 
-在 GitHub 打开本仓库的 **Actions → Build macOS app → 最近一次成功运行 → Artifacts**，下载 `Momo-Apple-Silicon`（Apple 芯片）或 `Momo-Intel`。下载 Artifacts 需要登录 GitHub。
+在 GitHub 打开本仓库的 **Actions → Build macOS app → 最近一次成功运行 → Artifacts**，下载 `Momo-macOS-arm64.zip`（Apple 芯片）或 `Momo-macOS-x64.zip`（Intel）。下载 Artifacts 需要登录 GitHub。
 
-Artifacts 下载包解压后得到对应的 `Momo-macOS-*.zip`；再解压一次得到 `Momo.app`。安装包通过 GitHub Actions 构建，不在源码文件列表中。
+下载后解压得到 `Momo.app`。安装包通过 GitHub Actions 构建，不在源码文件列表中。每次推送到 `main` 都会重新构建，也可以在 Actions 页面手动运行；安装包保留 30 天。
 
 解压 `release/Momo-macOS-arm64.zip`（Apple 芯片）或 `release/Momo-macOS-x64.zip`（Intel），把 `Momo.app` 拖进“应用程序”并打开。
 
