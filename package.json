@@ -1,0 +1,41 @@
+{
+  "name": "momo-desk-pet",
+  "version": "0.1.1",
+  "private": true,
+  "description": "慢慢 Momo — 住在桌面上的日程小伙伴",
+  "author": "bryang4toys",
+  "main": "dist/main/main.cjs",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build && node scripts/build-main.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "TZ=Asia/Shanghai tsx --test tests/*.test.ts",
+    "test:ui": "node scripts/smoke-web.mjs",
+    "test:desktop": "node scripts/smoke-electron.mjs",
+    "start": "electron .",
+    "package:mac": "npm run build && node scripts/package.mjs darwin",
+    "package:linux": "npm run build && node scripts/package.mjs linux"
+  },
+  "devDependencies": {
+    "@electron/packager": "^19.0.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^42.0.0",
+    "esbuild": "^0.25.0",
+    "lucide-react": "^0.468.0",
+    "playwright-core": "^1.58.0",
+    "png2icons": "^2.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sharp": "^0.34.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0"
+  }
+}
