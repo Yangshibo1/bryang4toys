@@ -21,5 +21,5 @@ for (let attempt = 0; attempt < 100; attempt++) {
 if (!ready) { stop(); throw new Error('Web development server did not start'); }
 const require = createRequire(import.meta.url);
 const electron = require('electron');
-const child = run(electron, ['.'], { env: { ...process.env, MOMO_DEV_URL: 'http://127.0.0.1:5173' } });
+const child = run(electron, ['.'], { env: { ...process.env, MIKA_DEV_URL: 'http://127.0.0.1:5173' } });
 child.on('exit', code => { vite.kill(); process.exit(code || 0); });

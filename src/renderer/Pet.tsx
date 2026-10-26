@@ -14,10 +14,10 @@ const artwork: Record<PetState, string> = {
 };
 
 const descriptions: Record<PetState, string> = {
-  idle: '慢慢，陪你安排生活的 GPT 白龙娘',
-  thinking: '慢慢正在想你的安排',
-  reminder: '慢慢来提醒你了',
-  happy: '慢慢为你完成一件事而开心',
+  idle: '米卡，你的白龙娘 AI 助手',
+  thinking: '米卡正在思考',
+  reminder: '米卡来提醒你了',
+  happy: '米卡为你完成一件事而开心',
 };
 
 /** The original transparent GPT dragon artwork is bundled with the app. */

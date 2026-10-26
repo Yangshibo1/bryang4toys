@@ -1,8 +1,8 @@
 {
-  "name": "momo-desk-pet",
-  "version": "0.1.2",
+  "name": "mika-assistant",
+  "version": "0.2.0",
   "private": true,
-  "description": "慢慢 Momo — 住在桌面上的日程小伙伴",
+  "description": "Mika 米卡 — 记得你的私人 AI 助手",
   "author": "bryang4toys",
   "main": "dist/main/main.cjs",
   "engines": {

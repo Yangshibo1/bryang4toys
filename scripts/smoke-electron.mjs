@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 
 const require = createRequire(import.meta.url);
-const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'momo-electron-'));
+const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'mika-electron-'));
 const failures = [];
 let app;
 let modelServer;
@@ -18,7 +18,7 @@ async function launch() {
     executablePath: require('electron'),
     args: [...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : []), '.'],
     cwd: process.cwd(), timeout: 30_000,
-    env: { ...process.env, MOMO_DATA_DIR: dataDir, MOMO_DEV_URL: '' },
+    env: { ...process.env, MIKA_DATA_DIR: dataDir, MIKA_DEV_URL: '', MOMO_DEV_URL: '' },
   });
   app = instance;
   instance.on('window', win => win.on('pageerror', error => failures.push(error.message)));
@@ -31,7 +31,7 @@ async function launch() {
   }
   if (!panel) throw new Error(`Panel not found: ${instance.windows().map(win => win.url()).join(', ')}`);
   await panel.waitForFunction(() => Boolean(window.petApi));
-  await panel.getByRole('heading', { name: '留一点时间，给自己。' }).waitFor();
+  await panel.locator('.app-shell').waitFor();
   return { instance, panel };
 }
 
@@ -40,7 +40,19 @@ try {
   app = launched.instance;
   let panel = launched.panel;
   assert.equal((await panel.evaluate(() => window.petApi.getState())).platform, process.platform);
-  await panel.getByRole('textbox', { name: '告诉慢慢你的安排' }).fill('3秒后提醒我喝水');
+  const personal = await panel.evaluate(async () => {
+    await window.petApi.saveProfile({ name: '小林', role: '个人开发者', preferences: '先给结论，再给具体步骤' });
+    const added = await window.petApi.addMemory({ content: '我喜欢在上午处理需要专注的事情', category: 'preference' });
+    const memory = added.memories.find(item => item.content === '我喜欢在上午处理需要专注的事情');
+    await window.petApi.updateMemory(memory.id, { content: '我偏好上午专注工作，下午处理杂事', category: 'routine' });
+    const temporary = await window.petApi.addMemory({ content: '这条临时记忆应该被删除', category: 'other' });
+    return window.petApi.deleteMemory(temporary.memories.find(item => item.content === '这条临时记忆应该被删除').id);
+  });
+  assert.equal(personal.profile.name, '小林');
+  assert.equal(personal.memories.length, 1);
+  const memoryId = personal.memories[0].id;
+  assert.equal(personal.memories[0].content, '我偏好上午专注工作，下午处理杂事');
+  await panel.getByRole('textbox', { name: '告诉米卡你的安排' }).fill('3秒后提醒我喝水');
   await panel.getByRole('button', { name: '发送消息', exact: true }).click();
   await panel.getByRole('button', { name: '完成 喝水', exact: true }).waitFor();
   const initial = await panel.evaluate(() => window.petApi.getState());
@@ -67,6 +79,12 @@ try {
   assert.equal(restored.tasks[0].id, id);
   assert.equal(restored.tasks[0].lastNotifiedAt, reminded.tasks[0].lastNotifiedAt);
   assert.equal(restored.reminders.length, 1);
+  assert.equal(restored.profile.name, '小林');
+  assert.equal(restored.profile.preferences, '先给结论，再给具体步骤');
+  assert.equal(restored.memories.length, 1);
+  assert.equal(restored.memories[0].id, memoryId);
+  assert.equal(restored.memories[0].category, 'routine');
+  assert.equal(restored.memories[0].content, '我偏好上午专注工作，下午处理杂事');
   await panel.getByRole('button', { name: '稍后 10 分钟', exact: true }).click();
   await panel.locator('.reminder-banner').waitFor({ state: 'detached' });
   const snoozed = await panel.evaluate(() => window.petApi.getState());
@@ -92,7 +110,7 @@ try {
   });
   await new Promise(resolve => modelServer.listen(0, '127.0.0.1', resolve));
   const { port } = modelServer.address();
-  await panel.evaluate(baseUrl => window.petApi.saveSettings({ baseUrl, apiKey: 'local-fixture-key', model: 'fixture' }), `http://127.0.0.1:${port}/v1`);
+  await panel.evaluate(baseUrl => window.petApi.saveSettings({ baseUrl, apiKey: 'local-fixture-key', model: 'fixture', protocol: 'chat-completions' }), `http://127.0.0.1:${port}/v1`);
   const replyPending = panel.evaluate(() => window.petApi.sendMessage('帮我安排今天'));
   replyPending.catch(() => {});
   await modelRequested;
@@ -105,7 +123,7 @@ try {
   await pet.screenshot({ path: 'test-results/desktop-idle.png', omitBackground: true });
   assert.equal((await panel.evaluate(() => window.petApi.getState())).assistantBusy, false);
   assert.deepEqual(failures, []);
-  console.log('Desktop smoke passed: actual Electron IPC, closed-panel reminders, restart persistence, deduplication, snooze, complete, dragon pet, and shared AI thinking state.');
+  console.log('Mika desktop smoke passed: actual Electron IPC, profile and memory CRUD with restart persistence, closed-panel reminders, deduplication, snooze, complete, dragon pet, and shared AI thinking state.');
 } finally {
   releaseModel();
   if (modelServer) { modelServer.closeAllConnections(); modelServer.close(); }

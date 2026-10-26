@@ -58,7 +58,7 @@ test('deleting a task removes its reminder; invalid times never enter the store'
 
 test('corrupt persisted data is reported without overwriting it', t => {
   const { dir } = setup(t);
-  const file = path.join(dir, 'momo-data.json');
+  const file = path.join(dir, 'mika-data.json');
   fs.writeFileSync(file, '{broken');
   assert.throws(() => new JsonStore(dir));
   assert.equal(fs.readFileSync(file, 'utf8'), '{broken');

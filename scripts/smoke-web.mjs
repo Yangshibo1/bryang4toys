@@ -11,7 +11,7 @@ const output = path.join(root, 'test-results');
 const chromiumPath = process.env.CHROMIUM_PATH || '/usr/bin/chromium';
 const port = Number(process.env.SMOKE_PORT || 5180);
 const origin = `http://127.0.0.1:${port}`;
-const storageKey = 'momo-browser-preview-v1';
+const storageKey = 'mika-browser-preview-v2';
 
 assert(Number.isInteger(port) && port >= 1024 && port <= 65535, 'SMOKE_PORT 必须是有效端口');
 try {
@@ -78,6 +78,9 @@ async function assertFits() {
 async function screenshot(name, options = {}) {
   // Let React state updates and layout finish before recording an artifact.
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.evaluate(() => Promise.all(document.getAnimations()
+    .filter(animation => animation.effect?.getTiming().iterations !== Infinity)
+    .map(animation => animation.finished.catch(() => {}))));
   await page.screenshot({ path: path.join(output, name), ...options });
 }
 
@@ -100,11 +103,13 @@ try {
   page = await context.newPage();
   page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto(origin, { waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: '留一点时间，给自己。', exact: true }).waitFor();
+  await page.getByRole('heading', { name: '让每次对话，都更懂你。', exact: true }).waitFor();
+  await page.getByRole('button', { name: '打开 AI 连接设置', exact: true }).waitFor();
+  assert.match(await page.getByRole('button', { name: '打开 AI 连接设置', exact: true }).innerText(), /待连接 AI/);
   await assertFits();
   await screenshot('ui-empty.png', { fullPage: true });
 
-  await page.getByRole('textbox', { name: '告诉慢慢你的安排', exact: true }).fill('10分钟后提醒我喝水');
+  await page.getByRole('textbox', { name: '告诉米卡你的安排', exact: true }).fill('10分钟后提醒我喝水');
   await page.getByRole('button', { name: '发送消息', exact: true }).click();
   await page.locator('.task-title').filter({ hasText: /^喝水$/ }).waitFor();
   let state = await readState();
@@ -155,7 +160,7 @@ try {
     localStorage.setItem(key, JSON.stringify(saved));
   }, storageKey);
   await page.reload();
-  await page.getByRole('heading', { name: '留一点时间，给自己。', exact: true }).waitFor();
+  await page.getByRole('heading', { name: '让每次对话，都更懂你。', exact: true }).waitFor();
   const reminder = page.locator('.reminder-banner').filter({ hasText: '起身走一走' });
   assert.equal(await reminder.count(), 0, '未来任务被过早提醒');
   await reminder.waitFor({ timeout: 12000 });
@@ -188,23 +193,95 @@ try {
   console.log('✓ 完成、已完成筛选、确认删除和重载');
 
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
+  assert.equal(await page.locator('input[name="model"]').inputValue(), 'gpt-6-luna');
+  await page.getByRole('combobox', { name: /接口协议/ }).selectOption('responses');
   await page.getByRole('switch', { name: '系统通知', exact: true }).click();
   await page.getByRole('button', { name: '保存设置', exact: true }).click();
   await page.reload();
   await page.getByRole('button', { name: '打开设置', exact: true }).click();
   assert.equal(await page.getByRole('switch', { name: '系统通知', exact: true }).getAttribute('aria-checked'), 'false');
+  assert.equal(await page.getByRole('combobox', { name: /接口协议/ }).inputValue(), 'responses');
+  await page.getByRole('button', { name: '测试连接', exact: true }).click();
+  await page.getByText('本次连接测试失败', { exact: true }).waitFor();
+  assert.equal((await readState()).settings.apiKeyConfigured, false, '网页预览不应把未验证配置显示为已连接');
   await screenshot('ui-settings.png', { fullPage: true });
-  await page.getByRole('button', { name: '关闭弹窗', exact: true }).click();
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+
+  await page.getByRole('button', { name: '打开我的画像', exact: true }).click();
+  await page.getByLabel('姓名 / 称呼', { exact: true }).fill('小林');
+  await page.getByLabel('身份 / 职业', { exact: true }).fill('独立开发者');
+  await page.getByLabel('关于我', { exact: true }).fill('正在做个人使用的 AI 小工具。');
+  await page.getByLabel('近期目标', { exact: true }).fill('这个月完成一个能每天使用的小产品。');
+  await page.getByLabel('偏好', { exact: true }).fill('喜欢直接、具体、有行动建议的回答。');
+  await page.getByLabel('作息', { exact: true }).fill('上午九点开始工作，晚上十一点休息。');
+  await page.getByLabel('希望米卡如何回应', { exact: true }).fill('先给建议，再解释原因。');
+  await page.getByRole('button', { name: '保存画像', exact: true }).click();
+  await page.getByText('画像已保存，米卡会更了解你', { exact: true }).waitFor();
+  assert.deepEqual((await readState()).profile, {
+    name: '小林', role: '独立开发者', about: '正在做个人使用的 AI 小工具。',
+    goals: '这个月完成一个能每天使用的小产品。', preferences: '喜欢直接、具体、有行动建议的回答。',
+    routine: '上午九点开始工作，晚上十一点休息。', assistantStyle: '先给建议，再解释原因。',
+  });
+  await screenshot('ui-profile-details.png', { fullPage: true });
+  await page.locator('.settings-body').evaluate(element => { element.scrollTop = 0; });
+  await screenshot('ui-profile.png', { fullPage: true });
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: '打开我的画像', exact: true }).click();
+  assert.equal(await page.getByLabel('姓名 / 称呼', { exact: true }).inputValue(), '小林');
+  assert.equal(await page.getByLabel('希望米卡如何回应', { exact: true }).inputValue(), '先给建议，再解释原因。');
+  assert.equal((await readState()).profile.role, '独立开发者');
+  console.log('✓ 七项个人画像保存及重载保留');
+
+  await page.getByRole('tab', { name: '长期记忆', exact: true }).click();
+  await page.getByLabel('记忆内容', { exact: true }).fill('我下午通常更有精神。');
+  await page.getByRole('combobox', { name: /记忆分类/ }).selectOption('routine');
+  await page.getByRole('button', { name: '添加记忆', exact: true }).click();
+  await page.locator('.settings-memory-content').filter({ hasText: /^我下午通常更有精神。$/ }).waitFor();
+  state = await readState();
+  const firstMemory = state.memories.find(memory => memory.content === '我下午通常更有精神。');
+  assert(firstMemory && firstMemory.category === 'routine' && firstMemory.source === 'manual');
+  await page.getByRole('button', { name: '编辑记忆 我下午通常更有精神。', exact: true }).click();
+  await page.getByLabel('编辑记忆', { exact: true }).fill('我下午更有精神，重要工作尽量安排在下午。');
+  await page.locator('.settings-memory-edit').getByRole('combobox', { name: /记忆分类/ }).selectOption('preference');
+  await page.getByRole('button', { name: '保存记忆', exact: true }).click();
+  await page.locator('.settings-memory-content').filter({ hasText: /^我下午更有精神，重要工作尽量安排在下午。$/ }).waitFor();
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: '打开长期记忆', exact: true }).click();
+  await page.locator('.settings-memory-content').filter({ hasText: /^我下午更有精神，重要工作尽量安排在下午。$/ }).waitFor();
+  assert.equal((await readState()).memories.find(memory => memory.id === firstMemory.id).category, 'preference');
+  await screenshot('ui-memories.png', { fullPage: true });
+  if (await page.getByRole('switch', { name: '启用长期记忆', exact: true }).getAttribute('aria-checked') === 'false') {
+    await page.getByRole('switch', { name: '启用长期记忆', exact: true }).click();
+    await page.waitForFunction(key => JSON.parse(localStorage.getItem(key)).settings.memoryEnabled === true, storageKey);
+  }
+  await page.getByRole('switch', { name: '启用长期记忆', exact: true }).click();
+  await page.waitForFunction(key => JSON.parse(localStorage.getItem(key)).settings.memoryEnabled === false, storageKey);
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: '打开长期记忆', exact: true }).click();
+  assert.equal(await page.getByRole('switch', { name: '启用长期记忆', exact: true }).getAttribute('aria-checked'), 'false');
+  assert.equal((await readState()).memories.length, 1, '关闭使用记忆不应删除已有内容');
+  await page.getByRole('button', { name: '删除记忆 我下午更有精神，重要工作尽量安排在下午。', exact: true }).click();
+  await page.getByRole('button', { name: '确认删除记忆', exact: true }).click();
+  await page.locator('.settings-memory-content').waitFor({ state: 'hidden' });
+  await page.getByRole('button', { name: '关闭设置', exact: true }).click();
+  await page.reload();
+  await page.getByRole('heading', { name: '让每次对话，都更懂你。', exact: true }).waitFor();
+  assert.equal((await readState()).memories.length, 0, '删除记忆没有持久化');
+  console.log('✓ 长期记忆新增、编辑、删除、分类、来源、重载和禁用设置');
+
   await screenshot('ui-main.png', { fullPage: true });
   await page.setViewportSize({ width: 800, height: 650 });
   await assertFits();
   await screenshot('ui-small.png', { fullPage: true });
-  console.log('✓ 设置持久化和主面板尺寸适配');
+  console.log('✓ 协议和通知设置持久化、离线连接反馈及主面板尺寸适配');
 
   await page.setViewportSize({ width: 248, height: 330 });
   await page.goto(`${origin}/?view=pet`);
   await page.locator('body.pet-body .pet-desktop').waitFor();
-  await page.getByRole('button', { name: '打开慢慢的聊天面板', exact: true }).waitFor();
+  await page.getByRole('button', { name: '打开米卡的聊天面板', exact: true }).waitFor();
   const petLayout = await page.evaluate(() => {
     const label = document.querySelector('.pet-task-count').getBoundingClientRect();
     const svg = document.querySelector('.desktop-character').getBoundingClientRect();

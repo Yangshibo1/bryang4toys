@@ -2,11 +2,12 @@ import { app, BrowserWindow, ipcMain, Menu, nativeImage, Notification, powerMoni
 import path from 'node:path';
 import { PetService } from './service';
 import { JsonStore } from './store';
-import type { SettingsPatch, TaskInput, TaskPatch } from '../shared/types';
+import type { SettingsPatch, TaskInput, TaskPatch, UserProfile, MemoryInput } from '../shared/types';
 
-if (process.env.MOMO_DATA_DIR) app.setPath('userData', path.resolve(process.env.MOMO_DATA_DIR));
-app.setName('慢慢 Momo');
-const developmentUrl = process.env.MOMO_DEV_URL;
+const customDataDirectory = process.env.MIKA_DATA_DIR || process.env.MOMO_DATA_DIR;
+if (customDataDirectory) app.setPath('userData', path.resolve(customDataDirectory));
+app.setName('Mika');
+const developmentUrl = process.env.MIKA_DEV_URL || process.env.MOMO_DEV_URL;
 let panel: BrowserWindow;
 let pet: BrowserWindow;
 let tray: Tray;
@@ -40,7 +41,7 @@ function checkReminders(): void {
     // Also show the pet bubble, even when system notifications are unavailable.
     if (pet && !pet.isDestroyed()) pet.showInactive();
     if (service.store.state.settings.notificationsEnabled) {
-      for (const task of due) showNotification('慢慢提醒你', task.title);
+      for (const task of due) showNotification('米卡提醒你', task.title);
     }
   } catch (error) {
     console.error('Reminder check failed:', error instanceof Error ? error.message : 'unknown error');
@@ -62,7 +63,7 @@ function createWindows(): void {
   const area = screen.getPrimaryDisplay().workArea;
   panel = new BrowserWindow({
     width: 1120, height: 790, minWidth: 930, minHeight: 660,
-    title: '慢慢 Momo', backgroundColor: '#faf8f7', show: false,
+    title: '米卡 Mika', backgroundColor: '#faf8f7', show: false,
     ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' as const } : {}),
     webPreferences: { preload, contextIsolation: true, nodeIntegration: false },
   });
@@ -87,14 +88,14 @@ function createWindows(): void {
   const trayImage = nativeImage.createFromPath(path.join(__dirname, 'assets/trayTemplate.png'));
   trayImage.setTemplateImage(true);
   tray = new Tray(trayImage.resize({ width: 18, height: 18 }));
-  tray.setToolTip('慢慢 Momo · 今天也一件一件来');
+  tray.setToolTip('米卡 Mika · 今天也一件一件来');
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: '打开慢慢', click: openPanel },
+    { label: '打开米卡', click: openPanel },
     { label: '显示小宠物', click: () => pet.showInactive() },
     { label: '隐藏小宠物', click: () => pet.hide() },
     { label: '打开数据文件夹', click: () => { void shell.openPath(app.getPath('userData')); } },
     { type: 'separator' },
-    { label: '退出慢慢', click: () => app.quit() },
+    { label: '退出米卡', click: () => app.quit() },
   ]));
   tray.on('click', openPanel);
 }
@@ -102,7 +103,7 @@ function createWindows(): void {
 function registerIpc(): void {
   ipcMain.handle('momo:get-state', () => service.snapshot());
   ipcMain.handle('momo:send-message', async (_event, text: string) => {
-    if (service.assistantBusy) throw new Error('慢慢还在思考，稍等一下再告诉我吧');
+    if (service.assistantBusy) throw new Error('米卡还在思考，稍等一下再告诉我吧');
     service.assistantBusy = true;
     try {
       const request = service.sendMessage(text);
@@ -126,7 +127,12 @@ function registerIpc(): void {
     service.saveSettings(patch);
     pet?.setAlwaysOnTop(service.store.state.settings.alwaysOnTop);
   });
-  ipcMain.handle('momo:test-notification', () => ({ supported: showNotification('慢慢在这里', '收到啦。到时间，我也会这样提醒你。') }));
+  ipcMain.handle('momo:test-ai', (_event, patch?: SettingsPatch) => service.testAiConnection(patch));
+  mutate('momo:save-profile', (patch: Partial<UserProfile>) => service.saveProfile(patch));
+  mutate('momo:add-memory', (input: MemoryInput) => service.addMemory(input));
+  mutate('momo:update-memory', (id: string, input: MemoryInput) => service.updateMemory(id, input));
+  mutate('momo:delete-memory', (id: string) => service.deleteMemory(id));
+  ipcMain.handle('momo:test-notification', () => ({ supported: showNotification('米卡在这里', '收到啦。到时间，我也会这样提醒你。') }));
   ipcMain.on('momo:open-panel', openPanel);
   ipcMain.on('momo:hide-panel', () => panel.hide());
   ipcMain.on('momo:toggle-panel', () => panel.isVisible() ? panel.hide() : openPanel());
@@ -138,7 +144,8 @@ else {
   app.on('second-instance', openPanel);
   app.whenReady().then(() => {
     try {
-      service = new PetService(new JsonStore(app.getPath('userData')), process.platform as 'darwin' | 'linux' | 'win32');
+      const legacyDirectories = customDataDirectory ? [] : ['慢慢 Momo', 'Momo', 'momo-desk-pet'].map(name => path.join(app.getPath('appData'), name));
+      service = new PetService(new JsonStore(app.getPath('userData'), legacyDirectories), process.platform as 'darwin' | 'linux' | 'win32');
       registerIpc();
       createWindows();
       checkReminders();
@@ -147,17 +154,17 @@ else {
       powerMonitor.on('resume', checkReminders);
       app.on('activate', openPanel);
       Menu.setApplicationMenu(Menu.buildFromTemplate([
-        { label: '慢慢 Momo', submenu: [
-          { label: '打开慢慢', click: openPanel },
+        { label: '米卡 Mika', submenu: [
+          { label: '打开米卡', click: openPanel },
           { label: '显示小宠物', click: () => pet.showInactive() },
           { label: '打开数据文件夹', click: () => { void shell.openPath(app.getPath('userData')); } },
-          { type: 'separator' }, { role: 'quit', label: '退出慢慢' },
+          { type: 'separator' }, { role: 'quit', label: '退出米卡' },
         ] },
         { role: 'editMenu', label: '编辑' },
         { label: '窗口', submenu: [{ role: 'minimize', label: '最小化' }, { role: 'close', label: '关闭窗口' }] },
       ]));
     } catch (error) {
-      dialog.showErrorBox('慢慢暂时无法启动', error instanceof Error ? error.message : String(error));
+      dialog.showErrorBox('米卡暂时无法启动', error instanceof Error ? error.message : String(error));
       app.quit();
     }
   });

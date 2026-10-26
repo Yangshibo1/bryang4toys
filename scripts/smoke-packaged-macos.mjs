@@ -12,14 +12,14 @@ if (process.platform !== 'darwin') {
   process.exit(0);
 }
 
-const arch = process.env.MOMO_ARCH || process.arch;
-assert.ok(['arm64', 'x64'].includes(arch), 'MOMO_ARCH must be arm64 or x64');
-const bundle = path.resolve('release', `verify-${arch}`, 'Momo.app');
-const executablePath = path.join(bundle, 'Contents', 'MacOS', 'Momo');
+const arch = process.env.MIKA_ARCH || process.env.MOMO_ARCH || process.arch;
+assert.ok(['arm64', 'x64'].includes(arch), 'MIKA_ARCH must be arm64 or x64');
+const bundle = path.resolve('release', `verify-${arch}`, 'Mika.app');
+const executablePath = path.join(bundle, 'Contents', 'MacOS', 'Mika');
 await fs.access(executablePath, constants.X_OK);
 await fs.access(path.join(bundle, 'Contents', 'Resources', 'app.asar'), constants.R_OK);
 
-const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), `momo-packaged-${arch}-`));
+const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), `mika-packaged-${arch}-`));
 const failures = [];
 let app;
 let passed = false;
@@ -85,7 +85,7 @@ async function checkDragonArtwork(window, label) {
 }
 
 async function launch() {
-  console.log(`Launching packaged ${arch} Momo.app`);
+  console.log(`Launching packaged ${arch} Mika.app`);
   const instance = await electron.launch({
     executablePath,
     // The app's own app.asar supplies its entry point. Passing "." here would
@@ -93,7 +93,7 @@ async function launch() {
     args: [],
     cwd: process.cwd(),
     timeout: 30_000,
-    env: { ...process.env, MOMO_DATA_DIR: dataDir, MOMO_DEV_URL: '' },
+    env: { ...process.env, MIKA_DATA_DIR: dataDir, MIKA_DEV_URL: '', MOMO_DEV_URL: '' },
   });
   app = instance;
   const tracked = new Set();
@@ -113,7 +113,7 @@ async function launch() {
   });
   assert.equal(await instance.evaluate(({ app: electronApp }) => electronApp.isPackaged), true);
   const [panel, pet] = await Promise.all([findView(instance, 'panel'), findView(instance, 'pet')]);
-  await panel.getByRole('heading', { name: '留一点时间，给自己。' }).waitFor();
+  await panel.locator('.app-shell').waitFor();
   assert.equal((await panel.evaluate(() => window.petApi.getState())).platform, 'darwin');
   assert.equal((await pet.evaluate(() => window.petApi.getState())).platform, 'darwin');
   await Promise.all([checkDragonArtwork(panel, 'Panel'), checkDragonArtwork(pet, 'Pet')]);
@@ -126,6 +126,20 @@ try {
   assert.equal(empty.tasks.length, 0, 'The packaged smoke must use a fresh test profile');
   assert.equal(empty.settings.apiKeyConfigured, false, 'The smoke must not use an external AI API');
   console.log('Packaged preload, macOS state, and both dragon images loaded');
+
+  const personal = await within(panel.evaluate(async () => {
+    await window.petApi.saveProfile({ name: '小林', role: '个人开发者', preferences: '先给结论，再给具体步骤' });
+    const added = await window.petApi.addMemory({ content: '我喜欢在上午处理需要专注的事情', category: 'preference' });
+    const memory = added.memories.find(item => item.content === '我喜欢在上午处理需要专注的事情');
+    await window.petApi.updateMemory(memory.id, { content: '我偏好上午专注工作，下午处理杂事', category: 'routine' });
+    const temporary = await window.petApi.addMemory({ content: '这条临时记忆应该被删除', category: 'other' });
+    return window.petApi.deleteMemory(temporary.memories.find(item => item.content === '这条临时记忆应该被删除').id);
+  }), 10_000, 'Saving profile and editing personal memories');
+  assert.equal(personal.profile.name, '小林');
+  assert.equal(personal.memories.length, 1);
+  const memoryId = personal.memories[0].id;
+  assert.equal(personal.memories[0].content, '我偏好上午专注工作，下午处理杂事');
+  console.log('Packaged profile and memory create/update/delete IPC verified');
 
   // Use the real preload IPC and local parser. No scheduler, clock, reminder
   // implementation, or application state is replaced by a test fixture.
@@ -160,6 +174,12 @@ try {
   assert.equal(restored.tasks[0].id, created.id);
   assert.equal(restored.tasks[0].lastNotifiedAt, deliveredTask.lastNotifiedAt);
   assert.equal(restored.reminders.filter(reminder => reminder.taskId === created.id).length, 1);
+  assert.equal(restored.profile.name, '小林');
+  assert.equal(restored.profile.preferences, '先给结论，再给具体步骤');
+  assert.equal(restored.memories.length, 1);
+  assert.equal(restored.memories[0].id, memoryId);
+  assert.equal(restored.memories[0].category, 'routine');
+  assert.equal(restored.memories[0].content, '我偏好上午专注工作，下午处理杂事');
   // Observe more than two actual three-second scheduler intervals after restart.
   // A duplicate delivery would replace lastNotifiedAt or append another reminder.
   await pause(6_500);
@@ -175,7 +195,7 @@ try {
   assert.equal(dismissed.tasks[0].lastNotifiedAt, deliveredTask.lastNotifiedAt);
   assert.equal(dismissed.reminders.length, 0, 'Dismissed reminder must not reappear after restart');
   assert.deepEqual(failures, [], 'Packaged renderers must not crash, throw errors, or fetch network resources');
-  console.log('Restart persistence, reminder deduplication, and dismissed state verified');
+  console.log('Profile and memory restart persistence, reminder deduplication, and dismissed state verified');
   passed = true;
 } catch (error) {
   console.error('FAIL packaged macOS smoke:', error);
@@ -188,5 +208,5 @@ try {
 }
 
 if (passed && !process.exitCode) {
-  console.log(`PASS packaged macOS smoke (${arch}): extracted app.asar, preload IPC, both dragon windows, real reminders, restart persistence, and no redelivery.`);
+  console.log(`PASS Mika packaged macOS smoke (${arch}): extracted app.asar, preload IPC, profile and memory CRUD, both dragon windows, real reminders, restart persistence, and no redelivery.`);
 }

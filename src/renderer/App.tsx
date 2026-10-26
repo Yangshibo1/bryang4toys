@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import {
-  ArrowDownToLine, ArrowUp, Bell, CalendarDays, Check, CheckCheck, ChevronRight,
+  ArrowDownToLine, ArrowUp, Bell, Brain, CalendarDays, Check, ChevronRight,
   Clock3, Coffee, GripHorizontal, LoaderCircle, MessageCircle, MoreHorizontal,
-  Pencil, Plus, Power, Settings2, Sparkles, Sun, Trash2, X,
+  Pencil, Plus, Power, Settings2, Sparkles, Sun, Trash2, UserRound, X,
 } from 'lucide-react';
 import { api } from '../shared/client';
-import type { AppSnapshot, Priority, SettingsPatch, Task, TaskInput } from '../shared/types';
+import type { AppSnapshot, Priority, Task, TaskInput } from '../shared/types';
 import { Pet } from './Pet';
+import { SettingsDialog } from './SettingsDialog';
 
 type Filter = 'today' | 'all' | 'completed';
 
@@ -97,65 +98,13 @@ function AddTask({ initial, onClose, onCreate }: { initial?: Task | null; onClos
     catch (reason) { setError(errorText(reason)); }
     finally { setSaving(false); }
   }
-  return <Modal title={initial ? '调整这件小事' : '记下一件小事'} subtitle={initial ? '计划可以变，慢慢会帮你重新记好。' : '腾空脑袋，交给慢慢记住。'} onClose={onClose}>
+  return <Modal title={initial ? '调整这件小事' : '记下一件小事'} subtitle={initial ? '计划可以变，米卡会帮你重新记好。' : '腾空脑袋，交给米卡记住。'} onClose={onClose}>
     <form onSubmit={submit} className="form-stack">
       <label>要做什么<input name="title" value={title} onChange={e => setTitle(e.target.value)} maxLength={200} placeholder="例如：准备明天的会议材料" required /></label>
       <label>什么时候提醒<input name="dueAt" type="datetime-local" value={dueAt} onChange={e => setDueAt(e.target.value)} /><span className="field-help">留空会记入待办，暂不设置到点提醒。按这台电脑的当地时间。</span></label>
       <div className="form-columns"><label>优先级<select value={priority} onChange={e => setPriority(e.target.value as Priority)}><option value="normal">普通</option><option value="high">重要</option><option value="low">不着急</option></select></label><label>预计用时（分钟）<input type="number" min="1" max="1440" value={duration} onChange={e => setDuration(Number(e.target.value))} required /></label></div>
       {error && <p role="alert" className="form-error">{error}</p>}
       <div className="modal-footer"><button className="secondary-button" type="button" onClick={onClose}>取消</button><button className="primary-button" disabled={saving || !title.trim()}>{saving ? <LoaderCircle size={16} className="spin" /> : initial ? <Check size={16} /> : <Plus size={16} />}{initial ? '保存修改' : '记下来了'}</button></div>
-    </form>
-  </Modal>;
-}
-
-function Settings({ state, onClose, onUpdate, onNotice }: {
-  state: AppSnapshot; onClose: () => void; onUpdate: (state: AppSnapshot) => void; onNotice: (message: string) => void;
-}) {
-  const [baseUrl, setBaseUrl] = useState(state.settings.baseUrl);
-  const [model, setModel] = useState(state.settings.model);
-  const [apiKey, setApiKey] = useState('');
-  const [notificationsEnabled, setNotifications] = useState(state.settings.notificationsEnabled);
-  const [alwaysOnTop, setAlwaysOnTop] = useState(state.settings.alwaysOnTop);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [error, setError] = useState('');
-  const [keyConfigured, setKeyConfigured] = useState(state.settings.apiKeyConfigured);
-  async function save(event: FormEvent) {
-    event.preventDefault(); setError(''); setSaving(true);
-    const patch: SettingsPatch = { baseUrl: baseUrl.trim(), model: model.trim(), notificationsEnabled, alwaysOnTop };
-    if (apiKey.trim()) patch.apiKey = apiKey.trim();
-    try { onUpdate(await api.saveSettings(patch)); onNotice('设置已保存'); onClose(); }
-    catch (reason) { setError(errorText(reason)); }
-    finally { setSaving(false); }
-  }
-  async function clearKey() {
-    setSaving(true); setError('');
-    try { onUpdate(await api.saveSettings({ apiKey: '' })); setKeyConfigured(false); setApiKey(''); onNotice('已清除密钥，切回本地模式'); }
-    catch (reason) { setError(errorText(reason)); }
-    finally { setSaving(false); }
-  }
-  async function testNotification() {
-    setTesting(true); setError('');
-    try {
-      const result = await api.testNotification();
-      onNotice(result.supported ? '已发送测试通知，请查看系统通知' : '暂时无法显示系统通知，请检查通知授权；到点仍会显示应用内提醒');
-    } catch (reason) { setError(errorText(reason)); }
-    finally { setTesting(false); }
-  }
-  return <Modal title="慢慢的设置" subtitle="先轻松用起来，再给慢慢一点 AI 超能力。" onClose={onClose}>
-    <form onSubmit={save} className="form-stack settings-form">
-      <div className="settings-section-title"><Sparkles size={16} />AI 对话<span className="optional-pill">可选</span></div>
-      <p className="settings-description">不配置也能记事、安排时间和提醒。连接兼容 OpenAI 的接口后，可以更自然地聊计划。</p>
-      <label>API 地址<input type="url" value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="https://api.deepseek.com/v1" required /></label>
-      <div className="form-columns"><label>模型名称<input value={model} onChange={e => setModel(e.target.value)} placeholder="deepseek-chat" required /></label><label>API 密钥<input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder={keyConfigured ? '已配置，留空保留' : '输入你的 API Key'} autoComplete="off" /></label></div>
-      {keyConfigured && <button className="text-button clear-key" type="button" disabled={saving} onClick={clearKey}><Trash2 size={13} />清除已保存的密钥</button>}
-      <div className="settings-divider" />
-      <div className="setting-row"><div><strong>系统通知</strong><span>到点弹出通知，应用内提醒始终保留</span></div><button className={`switch ${notificationsEnabled ? 'on' : ''}`} type="button" role="switch" aria-label="系统通知" aria-checked={notificationsEnabled} onClick={() => setNotifications(!notificationsEnabled)}><span /></button></div>
-      <div className="setting-row"><div><strong>宠物始终置顶</strong><span>让慢慢待在其他窗口上方</span></div><button className={`switch ${alwaysOnTop ? 'on' : ''}`} type="button" role="switch" aria-label="宠物始终置顶" aria-checked={alwaysOnTop} onClick={() => setAlwaysOnTop(!alwaysOnTop)}><span /></button></div>
-      <button className="secondary-button notification-test" type="button" disabled={testing} onClick={testNotification}>{testing ? <LoaderCircle size={15} className="spin" /> : <Bell size={15} />}测试系统通知</button>
-      {state.platform === 'browser' && <p className="field-help">网页预览会在页面打开时检查提醒；桌面常驻提醒请使用客户端。</p>}
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <div className="modal-footer"><button className="secondary-button" type="button" onClick={onClose}>取消</button><button className="primary-button" disabled={saving}>{saving && <LoaderCircle size={15} className="spin" />}保存设置</button></div>
     </form>
   </Modal>;
 }
@@ -181,9 +130,9 @@ function PetWindow({ state }: { state: AppSnapshot }) {
   const happy = useHappyReaction(state.tasks);
   const mood = reminder ? 'reminder' : state.assistantBusy ? 'thinking' : happy ? 'happy' : 'idle';
   return <div className="pet-desktop" onContextMenu={event => { event.preventDefault(); api.openPanel(); }}>
-    <div className="pet-drag-handle" title="拖动慢慢"><GripHorizontal size={21} /></div>
-    <button className={`pet-bubble ${reminder ? 'has-reminder' : ''}`} onClick={() => api.openPanel()} title={reminder?.title || next?.title || '打开日程面板'}><span>{reminder ? '到时间啦！' : state.assistantBusy ? '让我想一想…' : happy ? '又做好了一件事！' : next ? timeLabel(next) : '今天，也慢慢来。'}</span>{(reminder || (!state.assistantBusy && next && !happy)) && <strong>{reminder?.title || next?.title}</strong>}</button>
-    <button className="pet-character-button" onClick={() => api.togglePanel()} aria-label="打开慢慢的聊天面板"><Pet className="desktop-character" state={mood} /><span className="pet-task-count">{pending.length ? `${pending.length} 件小事` : '慢慢 Momo'}</span></button>
+    <div className="pet-drag-handle" title="拖动米卡"><GripHorizontal size={21} /></div>
+    <button className={`pet-bubble ${reminder ? 'has-reminder' : ''}`} onClick={() => api.openPanel()} title={reminder?.title || next?.title || '打开日程面板'}><span>{reminder ? '到时间啦！' : state.assistantBusy ? '让我想一想…' : happy ? '又做好了一件事！' : next ? timeLabel(next) : '有想法，随时和我说。'}</span>{(reminder || (!state.assistantBusy && next && !happy)) && <strong>{reminder?.title || next?.title}</strong>}</button>
+    <button className="pet-character-button" onClick={() => api.togglePanel()} aria-label="打开米卡的聊天面板"><Pet className="desktop-character" state={mood} /><span className="pet-task-count">{pending.length ? `${pending.length} 件小事` : '米卡 Mika'}</span></button>
   </div>;
 }
 
@@ -194,6 +143,7 @@ export function App() {
   const [sending, setSending] = useState(false);
   const [filter, setFilter] = useState<Filter>('today');
   const [modal, setModal] = useState<'task' | 'settings' | null>(null);
+  const [settingsTab, setSettingsTab] = useState<'connection' | 'profile' | 'memories'>('connection');
   const [editTask, setEditTask] = useState<Task | null>(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
@@ -243,45 +193,43 @@ export function App() {
   async function dismissReminder(taskId: string) {
     try { setState(await api.dismissReminder(taskId)); } catch (reason) { setError(errorText(reason)); }
   }
+  function openSettings(tab: 'connection' | 'profile' | 'memories' = 'connection') { setSettingsTab(tab); setShowMenu(false); setModal('settings'); }
   function openCreate() { setEditTask(null); setModal('task'); }
   function openEdit(task: Task) { setEditTask(task); setModal('task'); }
 
-  if (!state) return <div className={`loading-screen ${isPet ? 'pet-loading' : ''}`}><LoaderCircle size={23} className="spin" /><span>{error || '慢慢正在醒来…'}</span>{error && <button className="secondary-button" onClick={() => window.location.reload()}>重新打开</button>}</div>;
+  if (!state) return <div className={`loading-screen ${isPet ? 'pet-loading' : ''}`}><LoaderCircle size={23} className="spin" /><span>{error || '米卡正在醒来…'}</span>{error && <button className="secondary-button" onClick={() => window.location.reload()}>重新打开</button>}</div>;
   if (isPet) return <PetWindow state={state} />;
 
   const today = new Date(clock);
   const pending = state.tasks.filter(task => task.status === 'pending');
-  const todayCompleted = state.tasks.filter(task => task.status === 'completed' && task.completedAt && sameDay(new Date(task.completedAt), today)).length;
   const todayTasks = pending.filter(task => !task.dueAt || new Date(task.dueAt).getTime() < new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).getTime());
   const visibleTasks = [...state.tasks].filter(task => filter === 'completed' ? task.status === 'completed' : filter === 'all' ? task.status === 'pending' : todayTasks.some(item => item.id === task.id)).sort((a, b) => (a.dueAt ? Date.parse(a.dueAt) : Infinity) - (b.dueAt ? Date.parse(b.dueAt) : Infinity));
   const upcoming = [...pending].filter(task => task.dueAt && Date.parse(task.dueAt) > clock).sort((a, b) => Date.parse(a.dueAt!) - Date.parse(b.dueAt!))[0];
-  const totalToday = todayTasks.length + todayCompleted;
-  const progress = totalToday ? Math.round(todayCompleted / totalToday * 100) : 0;
-  const prompt = (text: string) => { setInput(text); inputRef.current?.focus(); };
+    const prompt = (text: string) => { setInput(text); inputRef.current?.focus(); };
 
   return <div className={`app-shell ${state.platform === 'darwin' ? 'macos-shell' : ''}`}>
     <header className="app-header">
-      <div className="brand"><span className="brand-mark"><Pet compact /></span><div><strong>慢慢 <span>Momo</span></strong><small>你的日程小伙伴</small></div></div>
-      <div className="header-right"><span className={`mode-badge ${state.settings.apiKeyConfigured ? 'ai-mode' : ''}`}><span />{state.settings.apiKeyConfigured ? 'AI 已配置' : '本地模式'}</span><div className="header-divider" /><button className="icon-button" onClick={() => setModal('settings')} title="设置" aria-label="打开设置"><Settings2 size={18} /></button>{state.platform !== 'browser' && <button className="icon-button" onClick={() => api.hidePanel()} title="收起面板，慢慢继续陪你" aria-label="收起到桌面"><ArrowDownToLine size={18} /></button>}<div className="menu-anchor"><button className="icon-button" onClick={() => setShowMenu(!showMenu)} aria-label="更多选项" aria-expanded={showMenu}><MoreHorizontal size={19} /></button>{showMenu && <div className="dropdown-menu"><button onClick={() => { setShowMenu(false); setModal('settings'); }}><Settings2 size={14} />偏好设置</button>{state.platform !== 'browser' && <button onClick={() => api.quit()}><Power size={14} />退出慢慢（停止提醒）</button>}<button onClick={() => { setShowMenu(false); prompt('你能帮我做什么？'); }}><MessageCircle size={14} />和慢慢打个招呼</button></div>}</div></div>
+      <div className="brand"><span className="brand-mark"><Pet compact /></span><div><strong>米卡 <span>Mika</span></strong><small>你的私人 AI 助手</small></div></div>
+      <div className="header-right"><button className={`mode-badge ${state.settings.apiKeyConfigured ? 'ai-mode' : ''}`} onClick={() => openSettings('connection')} aria-label="打开 AI 连接设置" title={state.settings.apiKeyConfigured ? `已配置 ${state.settings.model}，可在设置中测试连接` : '尚未连接 AI，目前仅支持离线记事规则'}><span /><b className="mode-label">{state.settings.apiKeyConfigured ? state.settings.model : '待连接 AI'}</b></button><button className="memory-nav-button" onClick={() => openSettings('memories')} aria-label="打开长期记忆" title="管理米卡对你的长期记忆"><Brain size={15} /><span>记忆</span><small>{state.memories.length}</small></button><div className="header-divider" /><button className="icon-button" onClick={() => openSettings('connection')} title="设置" aria-label="打开设置"><Settings2 size={18} /></button>{state.platform !== 'browser' && <button className="icon-button" onClick={() => api.hidePanel()} title="收起面板，米卡继续陪你" aria-label="收起到桌面"><ArrowDownToLine size={18} /></button>}<div className="menu-anchor"><button className="icon-button" onClick={() => setShowMenu(!showMenu)} aria-label="更多选项" aria-expanded={showMenu}><MoreHorizontal size={19} /></button>{showMenu && <div className="dropdown-menu"><button onClick={() => openSettings('connection')}><Settings2 size={14} />AI 连接与设置</button><button onClick={() => openSettings('profile')}><UserRound size={14} />我的画像</button><button onClick={() => openSettings('memories')}><Brain size={14} />长期记忆</button>{state.platform !== 'browser' && <button onClick={() => api.quit()}><Power size={14} />退出米卡（停止提醒）</button>}<button onClick={() => { setShowMenu(false); prompt('你能帮我做什么？'); }}><MessageCircle size={14} />和米卡打个招呼</button></div>}</div></div>
     </header>
-    <section className="overview"><div><div className="eyebrow"><Sun size={13} />{today.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}</div><h1>留一点时间，给自己<span>。</span></h1><p>把事情交给慢慢，把注意力留给当下。</p></div><div className="daily-summary"><div className="summary-ring" style={{ '--progress': `${progress}%` } as CSSProperties}><CheckCheck size={22} /></div><div><strong>{todayCompleted}<span> / {totalToday}</span></strong><small>今天完成的小事</small></div></div></section>
-    {state.platform === 'browser' && <div className="preview-note"><span className="preview-dot" />网页预览 · 数据保存在此浏览器，桌面常驻提醒需使用客户端</div>}
-    {state.reminders.length > 0 && <section className="reminder-stack" aria-live="assertive">{state.reminders.map(reminder => <div className="reminder-banner" key={reminder.taskId}><span className="reminder-icon"><Bell size={18} /></span><div><small>慢慢来提醒你了</small><strong>{reminder.title}</strong></div><button onClick={() => { const task = state.tasks.find(item => item.id === reminder.taskId); if (task) void taskAction(task, 'toggle'); }} className="reminder-done"><Check size={14} />完成</button><button onClick={() => { const task = state.tasks.find(item => item.id === reminder.taskId); if (task) void taskAction(task, 'snooze'); }} className="reminder-later">稍后 10 分钟</button><button className="icon-button" onClick={() => void dismissReminder(reminder.taskId)} aria-label={`关闭提醒 ${reminder.title}`}><X size={16} /></button></div>)}</section>}
+    <section className="overview"><div><div className="eyebrow"><Sun size={13} />{today.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' })}</div><h1>让每次对话，都更懂你<span>。</span></h1><p>聊聊想法，一起拆解目标，也记住对你重要的事。</p></div><button className="identity-summary" onClick={() => openSettings('profile')} aria-label="打开我的画像"><span className="identity-icon"><UserRound size={19} /></span><span><strong>{state.profile.name ? `你好，${state.profile.name}` : '让米卡认识你'}</strong><small>{state.profile.name ? '查看或更新我的画像' : '从你的目标与偏好开始'}</small></span><ChevronRight size={14} /></button></section>
+    {state.platform === 'browser' && <div className="preview-note"><span className="preview-dot" />网页离线预览 · 任务、画像和记忆保存在此浏览器，真实 AI 对话请使用桌面客户端</div>}
+    {state.reminders.length > 0 && <section className="reminder-stack" aria-live="assertive">{state.reminders.map(reminder => <div className="reminder-banner" key={reminder.taskId}><span className="reminder-icon"><Bell size={18} /></span><div><small>米卡来提醒你了</small><strong>{reminder.title}</strong></div><button onClick={() => { const task = state.tasks.find(item => item.id === reminder.taskId); if (task) void taskAction(task, 'toggle'); }} className="reminder-done"><Check size={14} />完成</button><button onClick={() => { const task = state.tasks.find(item => item.id === reminder.taskId); if (task) void taskAction(task, 'snooze'); }} className="reminder-later">稍后 10 分钟</button><button className="icon-button" onClick={() => void dismissReminder(reminder.taskId)} aria-label={`关闭提醒 ${reminder.title}`}><X size={16} /></button></div>)}</section>}
     <main className="workspace">
-      <section className="chat-panel"><div className="panel-header"><h2><MessageCircle size={16} />和慢慢聊聊</h2><span className="quiet-caption">想到什么，就说什么</span></div><div className="chat-scroll" role="log" aria-label="和慢慢的对话" aria-live="polite">
-        <div className="welcome-card"><div className="welcome-copy"><span className="little-label">YOUR LITTLE COMPANION</span><h3>嗨，我是慢慢<span> ✦</span></h3><p>你的计划、琐事和突发奇想，<br />我都愿意听。今天想先做点什么？</p></div><Pet className="welcome-pet" state={sending || state.assistantBusy ? 'thinking' : state.reminders.length ? 'reminder' : happy ? 'happy' : 'idle'} /></div>
-        {state.messages.length === 0 && <div className="first-message"><span className="assistant-avatar"><Pet compact /></span><p>告诉我一件要做的事吧。比如“10 分钟后提醒我喝水”，或者让我帮你安排今天。</p></div>}
+      <section className="chat-panel"><div className="panel-header"><h2><MessageCircle size={16} />和米卡聊聊</h2><span className="quiet-caption">想到什么，就说什么</span></div><div className="chat-scroll" role="log" aria-label="和米卡的对话" aria-live="polite">
+        <div className="welcome-card"><div className="welcome-copy"><span className="little-label">MIKA · YOUR PERSONAL AI</span><h3>嗨，我是米卡<span> ✦</span></h3>{state.settings.apiKeyConfigured ? <p>带上你的经历、目标和偏好，<br />我们可以把事情聊得更深入。</p> : <><p>连接 AI，才能展开真正的对话。<br />离线时，我可以按简单规则记事和提醒。</p><button className="welcome-connect" onClick={() => openSettings('connection')}><Sparkles size={12} />连接 AI<ChevronRight size={12} /></button></>}</div><Pet className="welcome-pet" state={sending || state.assistantBusy ? 'thinking' : state.reminders.length ? 'reminder' : happy ? 'happy' : 'idle'} /></div>
+        {state.messages.length === 0 && <div className="first-message"><span className="assistant-avatar"><Pet compact /></span><p>{state.settings.apiKeyConfigured ? '最近在忙什么，或者有什么想一起想清楚的事？' : '先连接你的 AI 服务，就可以开始聊想法、目标和生活。现在也可以用“10 分钟后提醒我喝水”这样的简单指令记事。'}</p></div>}
         {state.messages.map(message => <div className={`chat-message ${message.role}`} key={message.id}>{message.role === 'assistant' && <span className="assistant-avatar"><Pet compact /></span>}<div className="message-content"><div className="message-bubble">{message.text}</div><time>{new Date(message.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}</time></div></div>)}
-        {sending && <div className="chat-message assistant"><span className="assistant-avatar"><Pet compact state="thinking" /></span><div className="thinking" aria-label="慢慢正在想"><i /><i /><i /></div></div>}<div ref={messagesEnd} />
+        {sending && <div className="chat-message assistant"><span className="assistant-avatar"><Pet compact state="thinking" /></span><div className="thinking" aria-label="米卡正在想"><i /><i /><i /></div></div>}<div ref={messagesEnd} />
       </div>
-      <div className="composer-wrap"><div className="quick-prompts"><button disabled={sending} onClick={() => void send('帮我安排一下今天')}><Sparkles size={12} />安排今天</button><button disabled={sending} onClick={() => prompt('10分钟后提醒我喝水')}><Coffee size={12} />记个提醒</button><button disabled={sending} onClick={() => prompt('记一下买牛奶')}><Plus size={12} />随手记一件事</button></div><form className={`composer ${sending ? 'is-sending' : ''}`} onSubmit={event => { event.preventDefault(); void send(input); }}><textarea ref={inputRef} value={input} placeholder="明天下午三点提醒我开会…" rows={1} maxLength={4000} aria-label="告诉慢慢你的安排" onChange={event => { setInput(event.target.value); event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 104)}px`; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(input); } }} /><button className="send-button" type="submit" disabled={sending || !input.trim()} aria-label="发送消息">{sending ? <LoaderCircle size={17} className="spin" /> : <ArrowUp size={19} />}</button></form><div className="composer-hint"><span>{state.settings.apiKeyConfigured ? 'AI 帮你理解，慢慢帮你记住' : '本地模式也能记事和提醒'}</span><span>Enter 发送 · Shift + Enter 换行</span></div></div>
+      <div className="composer-wrap"><div className="quick-prompts"><button disabled={sending} onClick={() => prompt('结合我的目标和最近的安排，帮我想想今天最值得专注的事情。')}><Sparkles size={12} />一起理理思路</button><button disabled={sending} onClick={() => openSettings('memories')}><Brain size={12} />米卡记住了什么</button><button disabled={sending} onClick={() => prompt('10分钟后提醒我喝水')}><Coffee size={12} />记个提醒</button></div><form className={`composer ${sending ? 'is-sending' : ''}`} onSubmit={event => { event.preventDefault(); void send(input); }}><textarea ref={inputRef} value={input} placeholder={state.settings.apiKeyConfigured ? '和米卡聊想法、目标，或者今天遇到的事…' : '离线记事：10 分钟后提醒我喝水…'} rows={1} maxLength={4000} aria-label="告诉米卡你的安排" onChange={event => { setInput(event.target.value); event.target.style.height = 'auto'; event.target.style.height = `${Math.min(event.target.scrollHeight, 104)}px`; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(input); } }} /><button className="send-button" type="submit" disabled={sending || !input.trim()} aria-label="发送消息">{sending ? <LoaderCircle size={17} className="spin" /> : <ArrowUp size={19} />}</button></form><div className="composer-hint"><button onClick={() => openSettings(state.settings.apiKeyConfigured ? 'memories' : 'connection')}>{state.settings.apiKeyConfigured ? state.settings.memoryEnabled ? `长期记忆已开启 · ${state.memories.length} 条` : '长期记忆已关闭' : '离线记事 · 连接 AI 开始对话'}</button><span>Enter 发送 · Shift + Enter 换行</span></div></div>
       </section>
-      <aside className="tasks-panel"><div className="panel-header"><h2><CalendarDays size={16} />每一件小事<span className="count-badge">{pending.length}</span></h2><button className="add-task-button" onClick={openCreate} aria-label="添加任务"><Plus size={17} /></button></div><div className="task-filters" role="tablist" aria-label="任务筛选">{([['today', '今天'], ['all', '全部待办'], ['completed', '已完成']] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={filter === value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>{label}</button>)}</div><div className="task-list">{visibleTasks.length ? visibleTasks.map(task => <TaskRow key={task.id} task={task} busy={busyTask === task.id} onChange={task => void taskAction(task, 'toggle')} onSnooze={task => void taskAction(task, 'snooze')} onDelete={task => void taskAction(task, 'delete')} onEdit={openEdit} />) : <div className="empty-tasks"><div className="empty-illustration"><CalendarDays size={35} strokeWidth={1.2} /><span><Check size={12} strokeWidth={3} /></span></div><h3>{filter === 'completed' ? '每一步都算数' : filter === 'today' ? '今天还有很多可能' : '脑袋空空，也很好'}</h3><p>{filter === 'completed' ? '完成一件小事后，就能在这里看到它。' : '告诉慢慢你的计划，或手动记下一件小事。'}</p>{filter !== 'completed' && <button className="text-button" onClick={openCreate}>记下第一件事<ChevronRight size={13} /></button>}</div>}</div><div className="companion-note"><span className="note-spark">✧</span><div><strong>{upcoming ? '下一件小事' : '慢慢的小叮咛'}</strong><p>{upcoming ? `${timeLabel(upcoming)} · ${upcoming.title}` : '计划里，也记得给休息留个位置。'}</p></div></div></aside>
+      <aside className="tasks-panel"><div className="panel-header"><h2><CalendarDays size={16} />每一件小事<span className="count-badge">{pending.length}</span></h2><button className="add-task-button" onClick={openCreate} aria-label="添加任务"><Plus size={17} /></button></div><div className="task-filters" role="tablist" aria-label="任务筛选">{([['today', '今天'], ['all', '全部待办'], ['completed', '已完成']] as const).map(([value, label]) => <button key={value} role="tab" aria-selected={filter === value} className={filter === value ? 'active' : ''} onClick={() => setFilter(value)}>{label}</button>)}</div><div className="task-list">{visibleTasks.length ? visibleTasks.map(task => <TaskRow key={task.id} task={task} busy={busyTask === task.id} onChange={task => void taskAction(task, 'toggle')} onSnooze={task => void taskAction(task, 'snooze')} onDelete={task => void taskAction(task, 'delete')} onEdit={openEdit} />) : <div className="empty-tasks"><div className="empty-illustration"><CalendarDays size={35} strokeWidth={1.2} /><span><Check size={12} strokeWidth={3} /></span></div><h3>{filter === 'completed' ? '每一步都算数' : filter === 'today' ? '今天还有很多可能' : '脑袋空空，也很好'}</h3><p>{filter === 'completed' ? '完成一件小事后，就能在这里看到它。' : '告诉米卡你的计划，或手动记下一件小事。'}</p>{filter !== 'completed' && <button className="text-button" onClick={openCreate}>记下第一件事<ChevronRight size={13} /></button>}</div>}</div><div className="companion-note"><span className="note-spark">✧</span><div><strong>{upcoming ? '下一件小事' : '米卡的小叮咛'}</strong><p>{upcoming ? `${timeLabel(upcoming)} · ${upcoming.title}` : '计划里，也记得给休息留个位置。'}</p></div></div></aside>
     </main>
-    <footer className="app-footer"><span><span className="status-dot" />{state.platform === 'browser' ? '在当前浏览器保存' : '在这台电脑安心记住'}</span><span>不必赶路，慢慢也会到。</span></footer>
+    <footer className="app-footer"><span><span className="status-dot" />{state.platform === 'browser' ? '在当前浏览器保存' : '在这台电脑安心记住'}</span><span>和米卡一起，把想法变成下一步。</span></footer>
     {error && <div className="error-toast" role="alert"><span>{error}</span><button className="icon-button" onClick={() => setError('')} aria-label="关闭错误提示"><X size={15} /></button></div>}
     {notice && <div className="notice-toast" role="status"><Check size={15} /><span>{notice}</span></div>}
-    {modal === 'task' && <AddTask initial={editTask} onClose={() => setModal(null)} onCreate={async task => { setState(editTask ? await api.updateTask(editTask.id, task) : await api.createTask(task)); setFilter(task.dueAt && !sameDay(new Date(task.dueAt), today) ? 'all' : 'today'); setNotice(editTask ? '已重新记好这件事' : '好，慢慢记住了'); }} />}
-    {modal === 'settings' && <Settings state={state} onClose={() => setModal(null)} onUpdate={setState} onNotice={setNotice} />}
+    {modal === 'task' && <AddTask initial={editTask} onClose={() => setModal(null)} onCreate={async task => { setState(editTask ? await api.updateTask(editTask.id, task) : await api.createTask(task)); setFilter(task.dueAt && !sameDay(new Date(task.dueAt), today) ? 'all' : 'today'); setNotice(editTask ? '已重新记好这件事' : '好，米卡记住了'); }} />}
+    {modal === 'settings' && <SettingsDialog state={state} initialTab={settingsTab} onClose={() => setModal(null)} onUpdate={setState} onNotice={setNotice} />}
   </div>;
 }
