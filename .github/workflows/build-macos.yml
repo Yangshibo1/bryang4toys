@@ -28,6 +28,9 @@ jobs:
         run: npm test
       - name: Build and package both Mac architectures
         run: npm run package:mac
+      - name: Launch and test the extracted Mac application
+        shell: bash
+        run: npm run test:packaged:mac 2>&1 | tee release/mac-startup-report.txt
       - name: Generate checksums
         run: |
           cd release
@@ -55,6 +58,15 @@ jobs:
           archive: false
           if-no-files-found: error
           retention-days: 30
+      - name: Upload Mac signature and launch verification reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: Mac-validation-reports
+          path: |
+            release/mac-signature-report.txt
+            release/mac-startup-report.txt
+          if-no-files-found: error
+          retention-days: 30
       - name: Show download links
         env:
           APPLE_DOWNLOAD: ${{ steps.apple.outputs.artifact-url }}
@@ -67,5 +79,5 @@ jobs:
             echo "- [Intel 版]($INTEL_DOWNLOAD)"
             echo
             echo '登录 GitHub 后点击下载，解压后将 Momo.app 拖入应用程序。'
-            echo '个人测试包未签名，首次打开方式见仓库 README。'
+            echo '已验证临时签名、解压完整性和本机架构应用启动；此个人测试包尚未经过 Apple 公证，首次打开方式见仓库 README。'
           } >> "$GITHUB_STEP_SUMMARY"

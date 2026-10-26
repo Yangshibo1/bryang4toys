@@ -12,7 +12,9 @@
 
 解压 `release/Momo-macOS-arm64.zip`（Apple 芯片）或 `release/Momo-macOS-x64.zip`（Intel），把 `Momo.app` 拖进“应用程序”并打开。
 
-这是未签名的个人测试包。首次运行如被 macOS 拦截，可在“系统设置 → 隐私与安全性”中找到“仍要打开”。在系统通知设置里允许 Momo 的通知，随后用应用设置中的“测试系统通知”检查是否收到。
+从 0.1.2 起，个人测试包在 macOS 上完成临时签名，并在打包及解压后执行 `codesign --verify --deep --strict`，随后实际启动解压出的应用验证。0.1.1 的包缺少完整应用签名，已不建议使用，请下载最新成功运行的安装包并替换旧 `Momo.app`，本机任务数据不受替换影响。
+
+临时签名验证应用完整性，不等于 Apple Developer ID 签名和公证。首次打开可能仍需在“系统设置 → 隐私与安全性”中选择“仍要打开”。如新版仍出现“已损坏”，请保留具体错误供排查，不必关闭系统检查。在系统通知设置里允许 Momo 的通知，随后用应用设置中的“测试系统通知”检查是否收到。
 
 - 点击白龙娘打开或收起任务面板；顶部的小拖动条用来移动宠物。
 - 关闭面板后，菜单栏中的龙娘图标仍在运行并检查提醒。
@@ -68,10 +70,11 @@ npm run build         # 类型检查、构建界面与桌面程序
 npm test              # 中文时间、排程、持久化、提醒和模型接口测试
 npm run test:ui       # 用 Chromium 验证实际网页交互，先 build
 npm run test:desktop  # 用真实 Electron 验证 IPC、关闭面板提醒及重启恢复
-npm run package:mac   # 生成 Apple Silicon 与 Intel 两个未签名 Mac 应用包
+npm run test:packaged:mac # 在 Mac 上启动解压后的打包应用，先 package:mac
+npm run package:mac   # 在 Mac 上生成并验证 Apple Silicon 与 Intel 临时签名包
 ```
 
-网页测试需要安装 Chromium，可用 `CHROMIUM_PATH` 指定路径。无显示器的 Linux 云环境运行桌面测试需要 Xvfb。macOS 桌面开发和测试直接使用本机图形环境。仅打包某一种架构时可设置 `MOMO_ARCH=arm64` 或 `MOMO_ARCH=x64`。
+网页测试需要安装 Chromium，可用 `CHROMIUM_PATH` 指定路径。无显示器的 Linux 云环境运行桌面测试需要 Xvfb。macOS 桌面开发和测试直接使用本机图形环境。Mac 安装包只在 macOS 上构建；云环境中使用仓库 Actions 工作流，避免生成未经完整签名的包。仅打包某一种架构时可设置 `MOMO_ARCH=arm64` 或 `MOMO_ARCH=x64`。
 
 Electron 二进制在首次桌面启动或打包时从官方发布下载，并保留校验。使用网络代理的 Node.js 24 环境可设置 `NODE_USE_ENV_PROXY=1 NODE_USE_SYSTEM_CA=1`；打包下载还可设置 `ELECTRON_GET_USE_PROXY=1`。
 

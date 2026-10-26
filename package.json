@@ -1,6 +1,6 @@
 {
   "name": "momo-desk-pet",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "慢慢 Momo — 住在桌面上的日程小伙伴",
   "author": "bryang4toys",
@@ -16,6 +16,7 @@
     "test": "TZ=Asia/Shanghai tsx --test tests/*.test.ts",
     "test:ui": "node scripts/smoke-web.mjs",
     "test:desktop": "node scripts/smoke-electron.mjs",
+    "test:packaged:mac": "node scripts/smoke-packaged-macos.mjs",
     "start": "electron .",
     "package:mac": "npm run build && node scripts/package.mjs darwin",
     "package:linux": "npm run build && node scripts/package.mjs linux"
