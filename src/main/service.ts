@@ -222,7 +222,7 @@ export class PetService {
         reply = response.reply;
       } catch (error) {
         const reason = error instanceof Error && error.name === 'TimeoutError' ? '接口连接超时' : error instanceof Error ? error.message : '接口暂时不可用';
-        reply = `米卡这次没有完成 AI 请求：${reason}。\n任务和记忆没有按这次请求修改。请到设置检查接口、模型或测试连接后重试。`;
+        reply = `米卡这次没有完成 AI 请求：${reason}。\n任务和记忆没有按这次请求修改。可以重试这次对话；接口问题可在设置中查看连接详情。`;
       }
     } else {
       const result = interpretLocally(text, this.store.state.tasks);

@@ -59,7 +59,15 @@ export interface PersonalMemory {
   updatedAt: string;
 }
 export interface MemoryInput { content: string; category?: MemoryCategory }
-export interface AiConnectionResult { ok: boolean; model: string; latencyMs: number; message: string }
+export interface AiConnectionResult {
+  ok: boolean;
+  model: string;
+  latencyMs: number;
+  message: string;
+  endpoint?: string;
+  status?: number;
+  responseType?: string;
+}
 
 export interface Reminder {
   taskId: string;
